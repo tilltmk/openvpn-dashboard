@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 import subprocess
 import os
 
@@ -17,6 +17,7 @@ def get_users():
 def add_user(username):
     try:
         subprocess.check_call(f"cd /etc/openvpn/easy-rsa && ./easyrsa build-client-full {username} nopass", shell=True)
+        subprocess.check_call(f"cd /etc/openvpn/easy-rsa && ./easyrsa gen-crl", shell=True)
         return True
     except Exception as e:
         return str(e)
@@ -51,6 +52,28 @@ def get_configuration():
         with open('/etc/openvpn/server.conf', 'r') as file:
             config = file.read()
         return config
+    except Exception as e:
+        return str(e)
+
+# Funktion zum Herunterladen der Client-Konfiguration
+@app.route('/download/<username>', methods=['GET'])
+def download(username):
+    try:
+        path = f"/etc/openvpn/easy-rsa/pki/issued/{username}.crt"
+        return send_from_directory('/etc/openvpn/easy-rsa/pki/issued', f"{username}.crt")
+    except Exception as e:
+        return str(e)
+
+# Funktion zum Löschen eines Benutzers
+@app.route('/delete/<username>', methods=['POST'])
+def delete_user(username):
+    try:
+        subprocess.check_call(f"cd /etc/openvpn/easy-rsa && ./easyrsa revoke {username}", shell=True)
+        subprocess.check_call(f"cd /etc/openvpn/easy-rsa && ./easyrsa gen-crl", shell=True)
+        subprocess.check_call(f"rm /etc/openvpn/easy-rsa/pki/issued/{username}.crt", shell=True)
+        subprocess.check_call(f"rm /etc/openvpn/easy-rsa/pki/private/{username}.key", shell=True)
+        subprocess.check_call(f"rm /etc/openvpn/easy-rsa/pki/reqs/{username}.req", shell=True)
+        return redirect(url_for('index'))
     except Exception as e:
         return str(e)
 
